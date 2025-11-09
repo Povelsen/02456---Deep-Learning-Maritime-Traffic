@@ -75,4 +75,14 @@ def fn(file_path, out_path):
 
 
 if __name__ == "__main__":
-    fn()
+    import os
+
+    file_path = "aisdk-2025-11-06.csv"
+    out_path = "output/"
+
+    os.makedirs(out_path, exist_ok=True)
+
+    print(f"🚢 Processing {file_path}...")
+    fn(file_path, out_path)
+    print(f"✅ Done! Cleaned data saved to {out_path}")
+
