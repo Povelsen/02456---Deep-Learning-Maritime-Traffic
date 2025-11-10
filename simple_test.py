@@ -46,16 +46,29 @@ class SimpleLSTM(nn.Module):
 
 
 def create_test_data(n_samples=50, seq_length=100):
-    """Create simple test data"""
+    """Create simple test data NEAR DENMARK"""
+    
+    from utils.coordinates import get_denmark_coordinate_ranges
+    denmark = get_denmark_coordinate_ranges()
+    
     np.random.seed(42)
     
     data = []
     for i in range(n_samples):
-        # Simple trajectory
+        # Base position within Denmark region
+        base_lat = np.random.uniform(denmark['lat_min'] + 0.5, denmark['lat_max'] - 0.5)
+        base_lon = np.random.uniform(denmark['lon_min'] + 0.5, denmark['lon_max'] - 0.5)
+        
+        # Generate trajectory
         t = np.linspace(0, 4*np.pi, seq_length)
-        lat = 50 + 0.1 * np.sin(t + i) + 0.01 * np.random.randn(seq_length)
-        lon = 10 + 0.1 * np.cos(t + i) + 0.01 * np.random.randn(seq_length)
+        lat = base_lat + 0.05 * np.sin(t + i) + 0.01 * np.random.randn(seq_length)
+        lon = base_lon + 0.05 * np.cos(t + i) + 0.01 * np.random.randn(seq_length)
         speed = 10 + 5 * np.sin(0.5*t) + 2 * np.random.randn(seq_length)
+        
+        # Clip to Denmark bounds
+        lat = np.clip(lat, denmark['lat_min'], denmark['lat_max'])
+        lon = np.clip(lon, denmark['lon_min'], denmark['lon_max'])
+        speed = np.clip(speed, 0, 30)
         
         trajectory = np.column_stack([lat, lon, speed])
         data.append(trajectory)

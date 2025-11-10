@@ -6,6 +6,7 @@ Plotting functions for training curves, model performance, and trajectory predic
 """
 
 import os
+from xml.parsers.expat import errors
 import numpy as np
 import matplotlib.pyplot as plt
 import folium
@@ -170,73 +171,88 @@ class PredictionVisualizer:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
     
-    def visualize_predictions(self, X_test: np.ndarray, y_test: np.ndarray, 
-                            predictions: np.ndarray, norm_stats: Dict, 
-                            model_name: str, num_samples: int = 5):
-        """Create interactive maps comparing true vs predicted trajectories"""
+    # In visualization/plots.py, update PredictionVisualizer.visualize_predictions()
+
+def visualize_predictions(self, X_test: np.ndarray, y_test: np.ndarray, 
+                        predictions: np.ndarray, norm_stats: Dict, 
+                        model_name: str, num_samples: int = 5):
+    """Create interactive maps comparing true vs predicted trajectories"""
+    
+    # Get normalization stats
+    lat_min = norm_stats.get('Latitude_min', 0)
+    lat_max = norm_stats.get('Latitude_max', 1)
+    lon_min = norm_stats.get('Longitude_min', 0)
+    lon_max = norm_stats.get('Longitude_max', 1)
+    
+    # Denmark center for better map positioning
+    denmark_center = [56.0, 11.5]  # Approximate center of Denmark
+    
+    # De-normalization function
+    def denorm(x, vmin, vmax):
+        return (x * (vmax - vmin)) + vmin
+    
+    maps_created = []
+    
+    for i in range(min(num_samples, len(X_test))):
+        # De-normalize paths
+        input_lat = denorm(X_test[i, :, 0], lat_min, lat_max)
+        input_lon = denorm(X_test[i, :, 1], lon_min, lon_max)
         
-        # Get normalization stats
-        lat_min = norm_stats.get('Latitude_min', 0)
-        lat_max = norm_stats.get('Latitude_max', 1)
-        lon_min = norm_stats.get('Longitude_min', 0)
-        lon_max = norm_stats.get('Longitude_max', 1)
+        true_lat = denorm(y_test[i, :, 0], lat_min, lat_max)
+        true_lon = denorm(y_test[i, :, 1], lon_min, lon_max)
         
-        # De-normalization function
-        def denorm(x, vmin, vmax):
-            return (x * (vmax - vmin)) + vmin
+        pred_lat = denorm(predictions[i, :, 0], lat_min, lat_max)
+        pred_lon = denorm(predictions[i, :, 1], lon_min, lon_max)
         
-        maps_created = []
+        # Combine for paths
+        path_input = list(zip(input_lat, input_lon))
+        path_true = list(zip(true_lat, true_lon))
+        path_pred = list(zip(pred_lat, pred_lon))
         
-        for i in range(min(num_samples, len(X_test))):
-            # De-normalize paths
-            input_lat = denorm(X_test[i, :, 0], lat_min, lat_max)
-            input_lon = denorm(X_test[i, :, 1], lon_min, lon_max)
-            
-            true_lat = denorm(y_test[i, :, 0], lat_min, lat_max)
-            true_lon = denorm(y_test[i, :, 1], lon_min, lon_max)
-            
-            pred_lat = denorm(predictions[i, :, 0], lat_min, lat_max)
-            pred_lon = denorm(predictions[i, :, 1], lon_min, lon_max)
-            
-            # Combine for paths
-            path_input = list(zip(input_lat, input_lon))
-            path_true = list(zip(true_lat, true_lon))
-            path_pred = list(zip(pred_lat, pred_lon))
-            
-            # Create map centered on the start of the prediction
-            m = folium.Map(location=path_true[0], zoom_start=12)
-            
-            # Add paths
-            folium.PolyLine(path_input, color='blue', weight=2.5, opacity=1, 
-                           popup='Input Path', tooltip='Historical Trajectory').add_to(m)
-            folium.PolyLine(path_true, color='green', weight=4, opacity=0.8, 
-                           popup='True Future Path', tooltip='Actual Future Path').add_to(m)
-            folium.PolyLine(path_pred, color='red', weight=3, opacity=0.8, 
-                           popup='Predicted Path', tooltip='Model Prediction').add_to(m)
-            
-            # Add start/end markers
-            folium.Marker(path_input[0], popup='Start Input', 
-                         icon=folium.Icon(color='blue', icon='ship')).add_to(m)
-            folium.Marker(path_true[0], popup='Start Prediction', 
-                         icon=folium.Icon(color='green', icon='play')).add_to(m)
-            folium.Marker(path_true[-1], popup='End True', 
-                         icon=folium.Icon(color='green', icon='stop')).add_to(m)
-            folium.Marker(path_pred[-1], popup='End Predicted', 
-                         icon=folium.Icon(color='red', icon='flag')).add_to(m)
-            
-            # Add error analysis
-            errors = np.sqrt((np.array(true_lat) - np.array(pred_lat))**2 + 
-                           (np.array(true_lon) - np.array(pred_lon))**2)
-            
-            # Save map
-            save_path = f'{self.output_dir}/{model_name}_prediction_map_{i}.html'
-            m.save(save_path)
-            maps_created.append(save_path)
-            
-            # Create error plot
-            self._create_error_plot(errors, i, model_name)
+        # Create map centered on Denmark
+        m = folium.Map(location=denmark_center, zoom_start=8, tiles='OpenStreetMap')
         
-        return maps_created
+        # Add Denmark coastline overlay (optional but helpful)
+        folium.TileLayer(
+            tiles='https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+            attr='Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap',
+            name='Topographic',
+            control=True
+        ).add_to(m)
+        
+        # Add paths
+        folium.PolyLine(path_input, color='blue', weight=2.5, opacity=1, 
+                       popup='Input Path', tooltip='Historical Trajectory').add_to(m)
+        folium.PolyLine(path_true, color='green', weight=4, opacity=0.8, 
+                       popup='True Future Path', tooltip='Actual Future Path').add_to(m)
+        folium.PolyLine(path_pred, color='red', weight=3, opacity=0.8, 
+                       popup='Predicted Path', tooltip='Model Prediction').add_to(m)
+        
+        # Add start/end markers
+        folium.Marker(path_input[0], popup='Start Input', 
+                     icon=folium.Icon(color='blue', icon='ship')).add_to(m)
+        folium.Marker(path_true[0], popup='Start Prediction', 
+                     icon=folium.Icon(color='green', icon='play')).add_to(m)
+        folium.Marker(path_true[-1], popup='End True', 
+                     icon=folium.Icon(color='green', icon='stop')).add_to(m)
+        folium.Marker(path_pred[-1], popup='End Predicted', 
+                     icon=folium.Icon(color='red', icon='flag')).add_to(m)
+        
+        # Add layer control
+        folium.LayerControl().add_to(m)
+        
+        # Add bounds to keep map focused on Denmark
+        m.fit_bounds([ [lat_min, lon_min], [lat_max, lon_max] ])
+        
+        # Save map
+        save_path = f'{self.output_dir}/{model_name}_prediction_map_{i}.html'
+        m.save(save_path)
+        maps_created.append(save_path)
+        
+        # Create error plot
+        self._create_error_plot(errors, i, model_name)
+    
+    return maps_created
     
     def _create_error_plot(self, errors: np.ndarray, sample_idx: int, model_name: str):
         """Create error analysis plot for a prediction"""

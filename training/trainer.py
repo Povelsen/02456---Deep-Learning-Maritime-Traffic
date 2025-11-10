@@ -5,6 +5,7 @@ Model Training Utilities
 Training classes and utilities for vessel trajectory prediction models.
 """
 
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -20,7 +21,7 @@ class ModelTrainer:
     Training class for trajectory prediction models.
     """
     
-    def __init__(self, model: nn.Module, device: str = None):
+    def __init__(self, model: nn.Module, device: str = None, output_dir: str = "output"):
         if device is None:
             # Auto-detect device with priority: CUDA -> MPS -> CPU
             if torch.cuda.is_available():
@@ -37,13 +38,15 @@ class ModelTrainer:
             print(f"User specified device: {self.device}")
             
         self.model = model.to(self.device)
+        self.output_dir = output_dir
         self.history = {
             'train_loss': [], 'val_loss': [], 
             'train_mae': [], 'val_mae': []
         }
         
     def train(self, train_loader: DataLoader, val_loader: DataLoader, 
-              num_epochs: int = 50, learning_rate: float = 1e-4) -> Dict:
+              num_epochs: int = 50, learning_rate: float = 1e-4, 
+              model_name: str = "model") -> Dict:
         """Train the model with early stopping and learning rate scheduling"""
         
         criterion = nn.MSELoss()
@@ -53,6 +56,9 @@ class ModelTrainer:
         best_val_loss = float('inf')
         patience_counter = 0
         max_patience = 10
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(self.output_dir, exist_ok=True)
         
         for epoch in range(num_epochs):
             # Training phase
@@ -114,7 +120,11 @@ class ModelTrainer:
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
                 patience_counter = 0
-                torch.save(self.model.state_dict(), 'best_model.pth')
+                
+                # Save best model as .pt file in output directory
+                model_path = os.path.join(self.output_dir, f'{model_name}_best.pt')
+                torch.save(self.model.state_dict(), model_path)
+                print(f"   💾 Saved best model: {model_path}")
             else:
                 patience_counter += 1
                 
@@ -128,6 +138,11 @@ class ModelTrainer:
                   f"Val Loss: {avg_val_loss:.6f}, "
                   f"Train MAE: {avg_train_mae:.6f}, "
                   f"Val MAE: {avg_val_mae:.6f}")
+        
+        # Save final model as .pt file in output directory
+        final_model_path = os.path.join(self.output_dir, f'{model_name}_final.pt')
+        torch.save(self.model.state_dict(), final_model_path)
+        print(f"💾 Saved final model: {final_model_path}")
         
         return self.history
     

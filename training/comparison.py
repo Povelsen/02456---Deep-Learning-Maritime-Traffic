@@ -33,11 +33,13 @@ class ModelComparisonFramework:
     Framework for comparing different trajectory prediction models.
     """
     
-    def __init__(self):
+    def __init__(self, output_dir: str = "output"):
         self.models = {}
         self.results = {}
         self.data_info = {}
-        self.norm_stats = {}  # To store de-normalization stats
+        self.norm_stats = {}
+        self.output_dir = output_dir
+        self.batch_size = 32  # Default batch size
         
     def add_model(self, name: str, model: nn.Module):
         """Add a model to the comparison framework"""
@@ -84,9 +86,9 @@ class ModelComparisonFramework:
         val_dataset = TrajectoryDataset(X_val, y_val)
         test_dataset = TrajectoryDataset(X_test, y_test)
         
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=0)
-        val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=0)
-        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=0)
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
+        val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
         
         # Store data information
         self.data_info = {
@@ -96,9 +98,10 @@ class ModelComparisonFramework:
             'test_samples': len(X_test),
             'input_length': input_length,
             'output_length': output_length,
-            'features': data.shape[-1]
+            'features': data.shape[-1],
+            'batch_size': self.batch_size
         }
-        print("Data Info:", self.data_info)
+        print(f"Data Info: {self.data_info}")
         
         return train_loader, val_loader, test_loader, X_test, y_test
     
@@ -106,6 +109,7 @@ class ModelComparisonFramework:
         """Run complete model comparison, with plotting"""
         
         self.norm_stats = norm_stats  # Save stats for visualization
+        self.output_dir = output_dir
         train_loader, val_loader, test_loader, X_test, y_test = self.prepare_data(data)
         
         # Train all models
@@ -114,8 +118,8 @@ class ModelComparisonFramework:
             print(f"Training {name}...")
             print(f"{'='*60}")
             
-            trainer = ModelTrainer(model)
-            history = trainer.train(train_loader, val_loader, num_epochs=num_epochs)
+            trainer = ModelTrainer(model, output_dir=output_dir)
+            history = trainer.train(train_loader, val_loader, num_epochs=num_epochs, model_name=name)
             
             # Evaluate
             print(f"\nEvaluating {name}...")
@@ -187,4 +191,17 @@ class ModelComparisonFramework:
         with open(f'{output_dir}/pytorch_model_architectures.json', 'w') as f:
             json.dump(model_architectures, f, indent=2)
         
+        # Save information about saved models
+        saved_models_info = {}
+        for name, result in self.results.items():
+            saved_models_info[name] = {
+                'best_model_path': f'{output_dir}/{name}_best.pt',
+                'final_model_path': f'{output_dir}/{name}_final.pt',
+                'format': 'pytorch_state_dict'
+            }
+        
+        with open(f'{output_dir}/saved_models_info.json', 'w') as f:
+            json.dump(saved_models_info, f, indent=2)
+        
         print(f"Results saved to {output_dir}/")
+        print(f"Model files saved as .pt format in {output_dir}/")

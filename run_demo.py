@@ -30,19 +30,23 @@ from training.trainer import ModelTrainer
 
 
 def create_demo_data():
-    """Create demo trajectory data"""
+    """Create demo trajectory data NEAR DENMARK"""
+    
+    from utils.coordinates import get_denmark_coordinate_ranges
+    denmark = get_denmark_coordinate_ranges()
+    
     np.random.seed(42)
     
-    # Create more realistic vessel trajectories
+    # Create more realistic vessel trajectories near DENMARK
     n_vessels = 30
     seq_length = 256
     
     trajectories = []
     
     for vessel_id in range(n_vessels):
-        # Different starting positions and patterns
-        base_lat = np.random.uniform(50, 60)
-        base_lon = np.random.uniform(0, 20)
+        # Start position within Denmark region
+        base_lat = np.random.uniform(denmark['lat_min'] + 0.5, denmark['lat_max'] - 0.5)
+        base_lon = np.random.uniform(denmark['lon_min'] + 0.5, denmark['lon_max'] - 0.5)
         base_speed = np.random.uniform(8, 18)
         
         trajectory = []
@@ -65,28 +69,30 @@ def create_demo_data():
             speed = base_speed + 3 * np.sin(t * 0.1) + 2 * np.random.randn()
             speed = max(0, min(25, speed))
             
+            # Keep within Denmark bounds
+            lat = np.clip(lat, denmark['lat_min'], denmark['lat_max'])
+            lon = np.clip(lon, denmark['lon_min'], denmark['lon_max'])
+            
             trajectory.append([lat, lon, speed])
         
         trajectories.append(trajectory)
     
     data = np.array(trajectories)
     
-    # Normalize data
+    # Normalize using Denmark ranges
     norm_stats = {
-        'Latitude_min': data[:, :, 0].min(),
-        'Latitude_max': data[:, :, 0].max(),
-        'Longitude_min': data[:, :, 1].min(),
-        'Longitude_max': data[:, :, 1].max(),
-        'SOG_min': data[:, :, 2].min(),
-        'SOG_max': data[:, :, 2].max()
+        'Latitude_min': denmark['lat_min'],
+        'Latitude_max': denmark['lat_max'],
+        'Longitude_min': denmark['lon_min'],
+        'Longitude_max': denmark['lon_max'],
+        'SOG_min': 0,
+        'SOG_max': 30
     }
     
     # Apply normalization
-    for i, key in enumerate(['Latitude', 'Longitude', 'SOG']):
-        min_val = norm_stats[f'{key}_min']
-        max_val = norm_stats[f'{key}_max']
-        if max_val > min_val:
-            data[:, :, i] = (data[:, :, i] - min_val) / (max_val - min_val)
+    data[:, :, 0] = (data[:, :, 0] - denmark['lat_min']) / (denmark['lat_max'] - denmark['lat_min'])
+    data[:, :, 1] = (data[:, :, 1] - denmark['lon_min']) / (denmark['lon_max'] - denmark['lon_min'])
+    data[:, :, 2] = (data[:, :, 2] - 0) / (30 - 0)
     
     return data, norm_stats
 

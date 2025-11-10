@@ -21,14 +21,18 @@ from visualization import TrainingVisualizer, PredictionVisualizer
 
 
 def create_sample_data(n_vessels=10, seq_length=256):
-    """Create sample trajectory data for demonstration"""
+    """Create sample trajectory data NEAR DENMARK for demonstration"""
+    
+    from utils.coordinates import get_denmark_coordinate_ranges
+    denmark = get_denmark_coordinate_ranges()
+    
     np.random.seed(42)
     
     sample_data = []
     for vessel_id in range(n_vessels):
-        # Start position
-        lat = np.random.uniform(50, 60)
-        lon = np.random.uniform(0, 20)
+        # Start position within Denmark region
+        lat = np.random.uniform(denmark['lat_min'], denmark['lat_max'])
+        lon = np.random.uniform(denmark['lon_min'], denmark['lon_max'])
         speed = np.random.uniform(5, 25)
         
         trajectory = []
@@ -39,21 +43,29 @@ def create_sample_data(n_vessels=10, seq_length=256):
             speed += np.random.normal(0, 0.2)
             speed = max(0, min(30, speed))
             
+            # Keep within Denmark bounds
+            lat = np.clip(lat, denmark['lat_min'], denmark['lat_max'])
+            lon = np.clip(lon, denmark['lon_min'], denmark['lon_max'])
+            
             trajectory.append([lat, lon, speed])
         
         sample_data.append(trajectory)
     
     data = np.array(sample_data)
     
-    # Normalize
+    # Create normalization stats based on Denmark region
     norm_stats = {
-        'Latitude_min': 50, 'Latitude_max': 60,
-        'Longitude_min': 0, 'Longitude_max': 20,
-        'SOG_min': 0, 'SOG_max': 30
+        'Latitude_min': denmark['lat_min'],
+        'Latitude_max': denmark['lat_max'],
+        'Longitude_min': denmark['lon_min'],
+        'Longitude_max': denmark['lon_max'],
+        'SOG_min': 0,
+        'SOG_max': 30
     }
     
-    data[:, :, 0] = (data[:, :, 0] - 50) / (60 - 50)
-    data[:, :, 1] = (data[:, :, 1] - 0) / (20 - 0)
+    # Normalize sample data
+    data[:, :, 0] = (data[:, :, 0] - denmark['lat_min']) / (denmark['lat_max'] - denmark['lat_min'])
+    data[:, :, 1] = (data[:, :, 1] - denmark['lon_min']) / (denmark['lon_max'] - denmark['lon_min'])
     data[:, :, 2] = (data[:, :, 2] - 0) / (30 - 0)
     
     return data, norm_stats
